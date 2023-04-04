@@ -1,5 +1,5 @@
-*Prepared by: [Jamie Wilkie](mailto:jamie.c.wilkie@gmail.com)
-*[Interactive dashboard link](LINK TO BE CREATED)
+*Prepared by: [Jamie Wilkie](mailto:jamie.c.wilkie@gmail.com)*
+*[Interactive dashboard link](LINK TO BE CREATED)*
 
 # Diamond Valley Tax Analysis
 
