@@ -9,6 +9,7 @@ import plotly_express as px
 dataFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRollInfo/Consolidated.csv'
 currYear = 2023
 defaultAddr = '622 SUNRISE HILL S.W.'
+defColors = px.colors.qualitative.Vivid
 
 # Data:
 
@@ -24,8 +25,25 @@ def useful(fullSet):
     keepRolls = yearCounts[(yearCounts[currYear] > 0) & 
                            (yearCounts[currYear-1] > 0)].index
     useSet = fullSet[fullSet['Roll Number'].isin(keepRolls)]
+    useSet = useSet[(useSet['Prop Type Code']=='2') & 
+                    (useSet['Tax/Exempt']=='T')]
     return useSet
 useSet = useful(fullSet)
+
+def getYoYChng(useSet):
+    wideSet = pd.pivot_table(useSet, index='Roll Number', 
+                             columns='Tax Year', values='Total Value', 
+                             aggfunc=np.sum)
+    wideSet = pd.merge(left=wideSet, 
+                        right=useSet[['Roll Number', 'Street Address']].drop_duplicates(subset=['Roll Number'], keep='first'),
+                        how='left', on='Roll Number')
+    return wideSet
+YoYChng = getYoYChng(useSet)
+
+def getDistnData(useSet):
+    distnData = useSet[['Roll Number', 'Total Value', 'Tax Year']]
+    return distnData
+distnData = getDistnData(useSet)
 
 @st.cache_data
 def getAddrs(useSet):
@@ -57,9 +75,27 @@ introSamp['pctChg'] = introSamp['Total Value'].pct_change()
 
 # Charts
 introCht1 = px.bar(introSamp, x='Tax Year', y='Total Value', 
-                   title='Property Assessment for ' + selAddr,
-                   text='pctChg')
+                   title='Property Assessment for<br>' + selAddr.title(),
+                   text='pctChg', color_discrete_sequence=defColors)
 introCht1.update_xaxes(type='category')
+y1Avg = distnData[(distnData['Tax Year']==currYear)]['Total Value'].mean()
+y2Avg = distnData[(distnData['Tax Year']==(currYear-1))]['Total Value'].mean()
+introCht2 = px.histogram(distnData[(distnData['Tax Year']==currYear)|
+                                   (distnData['Tax Year']==(currYear-1))], 
+                         x='Total Value', color='Tax Year',
+                         barmode='overlay', color_discrete_sequence=defColors,
+                         nbins=20, 
+                         title='Distribution of Residential<br>Property ' + 
+                         'Assessments')
+introCht2.add_annotation(x=y1Avg, y=225, showarrow=False, text="<b>" + str(currYear) + 
+                         ' Avg: </b><br>${:,.0f} </b><br>'.format(y1Avg) + 
+                         '{b:+,.0%}'.format(b=(y1Avg/y2Avg)-1), xshift=50, 
+                         font=dict(color=defColors[0]))
+introCht2.add_vline(x=y1Avg, line_width=3, line_dash='dash', line_color=defColors[0])
+introCht2.add_annotation(x=y2Avg, y=225, showarrow=False, text="<b>" + str(currYear - 1) + 
+                         ' Avg: </b><br>${a:,.0f}<br> '.format(a=y2Avg), xshift=-50, 
+                         font=dict(color=defColors[1]))
+introCht2.add_vline(x=y2Avg, line_width=3, line_dash='dash', line_color=defColors[1])
 
 # Multi-line text strings
 tIntro1 = '''
@@ -148,7 +184,13 @@ So how did your change in assessment compare to other's?
 # mainapp configuration
 st.image('animation.gif')
 st.markdown(tIntro1)
-st.plotly_chart(introCht1)
+introChts1, introChts2 = st.columns(2)
+with introChts1:
+    st.plotly_chart(introCht1, use_container_width=True, 
+                    config = {'displayModeBar': False})
+with introChts2:
+    st.plotly_chart(introCht2, use_container_width=True,
+                    config = {'displayModeBar': False})
 st.markdown(tTaxEq1)
 st.markdown(tMill1)
 st.markdown(tWhyAssess)
