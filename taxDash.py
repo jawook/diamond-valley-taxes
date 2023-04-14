@@ -8,7 +8,7 @@ import plotly_express as px
 # Definitions:
 dataFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRollInfo/Consolidated.csv'
 currYear = 2023
-defaultAddr = '622 SUNRISE HILL S.W.'
+defaultAddr = '622 Sunrise Hill S.W.'
 defColors = px.colors.qualitative.Vivid
 
 #%% Data retrieval
@@ -16,6 +16,7 @@ defColors = px.colors.qualitative.Vivid
 @st.cache_data
 def retrData():
     fullSet = pd.read_csv(dataFP)
+    fullSet['Street Address'] = fullSet['Street Address'].str.title()
     return fullSet
 fullSet = retrData()
 
@@ -129,8 +130,24 @@ introCht2.update_yaxes(title='Number of Properties')
 
 # yoyChg charts ($ change)
 yoyCht1 = px.bar(YoYChng.sort_values(by='dolChg', ascending=True), x ='dolChg',
-                 y ='Street Address')
+                 y ='Street Address', color_discrete_sequence=defColors,
+                 title='$ Change in Assessed Value from ' + str(currYear-1) +
+                 ' - ' + str(currYear))
+yoyCht1.update_xaxes(title='Change in Property Assessment ($000s)', 
+                     tickformat='$~s', range=[0,100000])
+yoyCht1.add_hline(y=selAddr, line_width=3, line_dash='dash', line_color=defColors[2])
 yoyCht1.update_yaxes(visible=False)
+
+
+# yoyChg charts (% change)
+yoyCht2 = px.bar(YoYChng.sort_values(by='pctChg', ascending=True), x ='pctChg',
+                 y ='Street Address', color_discrete_sequence=defColors,
+                 title='% Change in Assessed Value from ' + str(currYear-1) +
+                 ' - ' + str(currYear))
+yoyCht2.update_xaxes(title='% Change in Property Assessment', 
+                     tickformat='.1%', range=[0,0.4])
+yoyCht2.add_hline(y=selAddr, line_width=3, line_dash='dash', line_color=defColors[2])
+yoyCht2.update_yaxes(visible=False)
 
 # Multi-line text strings
 tIntro1 = '''
@@ -236,4 +253,7 @@ st.markdown(tWhyAssess)
 yoyChts1, yoyChts2 = st.columns(2)
 with yoyChts1:
     st.plotly_chart(yoyCht1, use_container_width=True,
+                    config = {'displayModeBar': False})
+with yoyChts2:
+    st.plotly_chart(yoyCht2, use_container_width=True,
                     config = {'displayModeBar': False})
