@@ -11,7 +11,7 @@ currYear = 2023
 defaultAddr = '622 SUNRISE HILL S.W.'
 defColors = px.colors.qualitative.Vivid
 
-# Data:
+#%% Data retrieval
 
 @st.cache_data
 def retrData():
@@ -19,8 +19,10 @@ def retrData():
     return fullSet
 fullSet = retrData()
 
+#%% Data processing functions
+
 @st.cache_data
-def useful(fullSet):
+def useful(fullSet, currYear):
     yearCounts = fullSet.groupby(['Roll Number', 'Tax Year']).size().unstack(fill_value=0)
     keepRolls = yearCounts[(yearCounts[currYear] > 0) & 
                            (yearCounts[currYear-1] > 0)].index
@@ -28,17 +30,21 @@ def useful(fullSet):
     useSet = useSet[(useSet['Prop Type Code']=='2') & 
                     (useSet['Tax/Exempt']=='T')]
     return useSet
-useSet = useful(fullSet)
+useSet = useful(fullSet, currYear)
 
-def getYoYChng(useSet):
+def getYoYChng(useSet, currYear):
     wideSet = pd.pivot_table(useSet, index='Roll Number', 
                              columns='Tax Year', values='Total Value', 
                              aggfunc=np.sum)
     wideSet = pd.merge(left=wideSet, 
                         right=useSet[['Roll Number', 'Street Address']].drop_duplicates(subset=['Roll Number'], keep='first'),
                         how='left', on='Roll Number')
+    wideSet = wideSet[['Street Address', currYear, currYear - 1]]
+    wideSet['dolChg'] = wideSet[currYear] - wideSet[currYear - 1]
+    wideSet['pctChg'] = (wideSet[currYear] / wideSet[currYear - 1]) - 1
+    wideSet.dropna(how='any', inplace=True)
     return wideSet
-YoYChng = getYoYChng(useSet)
+YoYChng = getYoYChng(useSet, currYear)
 
 def getDistnData(useSet):
     distnData = useSet[['Roll Number', 'Total Value', 'Tax Year']]
@@ -51,35 +57,57 @@ def getAddrs(useSet):
     allAddr.sort()
     return allAddr
 allAddr = getAddrs(useSet)
-
 dAIdx = allAddr.index(defaultAddr)
 
-# Sidebar loading
+#%% Sidebar loading
 with st.sidebar:
     st.markdown('### START HERE: select a property for analysis')
     selAddr = st.selectbox('Street address for examples shown:', allAddr,
                            index=dAIdx)
-    st.markdown('*You can type in the box above to make it easier to find ' + 
+    st.markdown('You can type in the box above to make it easier to find ' + 
                 'your address')
     st.markdown('---')
     st.markdown('*Note: if your address does not appear, it is because we do ' + 
-                'not have access to 2 years of data (i.e. you live in Black Diamond')
+                'not have access to 2 years of data (i.e. you live in Black Diamond' +
+                'and we haven\'t been able to get that data*')
 
-# Data processing
+#%% post-selection data processing
+@st.cache_data
+def getIntroSamp(useSet, currYear):
+    introSamp = useSet[(useSet['Street Address'] == selAddr) & 
+                       (useSet['Tax Year'] <= currYear) & 
+                       (useSet['Tax Year'] >= currYear - 1)
+                       ].sort_values(by=['Tax Year'])
+    introSamp['pctChg'] = introSamp['Total Value'].pct_change()
+    return introSamp
+introSamp = getIntroSamp(useSet, currYear)
 
-introSamp = useSet[(useSet['Street Address'] == selAddr) & 
-                   (useSet['Tax Year'] <= currYear) & 
-                   (useSet['Tax Year'] >= currYear - 1)
-                   ].sort_values(by=['Tax Year'])
-introSamp['pctChg'] = introSamp['Total Value'].pct_change()
+#%% variable calculation
 
-# Charts
-introCht1 = px.bar(introSamp, x='Tax Year', y='Total Value', 
-                   title='Property Assessment for<br>' + selAddr.title(),
-                   text='pctChg', color_discrete_sequence=defColors)
-introCht1.update_xaxes(type='category')
+sampPx2 = introSamp.loc[introSamp['Tax Year']==currYear, ['Total Value']].values[0][0]
+sampPx1 = introSamp.loc[introSamp['Tax Year']==currYear-1, ['Total Value']].values[0][0]
+sampYoY = introSamp.loc[introSamp['Tax Year']==currYear, ['pctChg']].values[0][0]
 y1Avg = distnData[(distnData['Tax Year']==currYear)]['Total Value'].mean()
 y2Avg = distnData[(distnData['Tax Year']==(currYear-1))]['Total Value'].mean()
+
+#%% charts
+## single property yoy chng
+introCht1 = px.bar(introSamp, x='Tax Year', y='Total Value', 
+                   title='Property Assessment for<br>' + selAddr.title(),
+                   color_discrete_sequence=defColors)
+introCht1.update_xaxes(type='category')
+introCht1.update_yaxes(visible=False)
+introCht1.add_annotation(x=1, y=sampPx2, 
+                         text='<b>{:+.1%}</b>'.format(sampYoY),
+                         showarrow=False, yshift=10, font=dict(color=defColors[0]))
+introCht1.add_annotation(x=0, y=sampPx1, 
+                         text='<b>${:,.0f}</b>'.format(sampPx1),
+                         showarrow=False, yshift=-10, font=dict(color='white'))
+introCht1.add_annotation(x=1, y=sampPx2, 
+                         text='<b>${:,.0f}</b>'.format(sampPx2),
+                         showarrow=False, yshift=-10, font=dict(color='white'))
+
+## distribution yoy
 introCht2 = px.histogram(distnData[(distnData['Tax Year']==currYear)|
                                    (distnData['Tax Year']==(currYear-1))], 
                          x='Total Value', color='Tax Year',
@@ -96,6 +124,13 @@ introCht2.add_annotation(x=y2Avg, y=225, showarrow=False, text="<b>" + str(currY
                          ' Avg: </b><br>${a:,.0f}<br> '.format(a=y2Avg), xshift=-50, 
                          font=dict(color=defColors[1]))
 introCht2.add_vline(x=y2Avg, line_width=3, line_dash='dash', line_color=defColors[1])
+introCht2.update_xaxes(title='Residential Property Value', tickformat='$,.0f')
+introCht2.update_yaxes(title='Number of Properties')
+
+# yoyChg charts ($ change)
+yoyCht1 = px.bar(YoYChng.sort_values(by='dolChg', ascending=True), x ='dolChg',
+                 y ='Street Address')
+yoyCht1.update_yaxes(visible=False)
 
 # Multi-line text strings
 tIntro1 = '''
@@ -104,8 +139,8 @@ This guide was created to help folks in [Diamond Valley, Alberta](https://goo.gl
 the process that determines property values, the mill rate and municipal tax bills
 that happens each year in our community.
 
-The creator is [Jamie Wilkie](mailto:jamie.c.wilkie@gmail.com).  I am a former 
-1 (partial) term councillor of Turner Valley that is a self-confessed local 
+The creator is [Jamie Wilkie](mailto:jamie.c.wilkie@gmail.com).  I was briefly
+a councillor of Turner Valley and am a self-confessed local 
 politics nerd. My "real job" is as an instructor of data analysis and financial
 modeling with [The Marquee Group](www.marqueegroup.ca), which was recently
 acquired by Training the Street LLC. Taxes involve a lot of data. So this was a 
@@ -156,6 +191,10 @@ After that, the town adds up all of the assessed values of property in town and 
 the total amount needed and divides it by the total assessed value. That's the mill rate.
 Thats's all there is to it!
 
+> ##### Amount to be Raised by General Municipal Tax
+> ##### Divided by: Total Property Assessment
+> ##### Equals: Mill Rate
+
 *Note: there is one minor complication, municipalities will typically set a different
 mill rate for businesses and for residences.  However, the above holds for the
 municipality as a whole.*
@@ -194,3 +233,7 @@ with introChts2:
 st.markdown(tTaxEq1)
 st.markdown(tMill1)
 st.markdown(tWhyAssess)
+yoyChts1, yoyChts2 = st.columns(2)
+with yoyChts1:
+    st.plotly_chart(yoyCht1, use_container_width=True,
+                    config = {'displayModeBar': False})
