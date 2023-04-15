@@ -78,6 +78,9 @@ def getTaxCalcs(useSet, currYear, rates):
                   (rates['Type']=='General Municipality')]
     taxTbl = pd.merge(left=taxTbl, right=rates, how='left', on='Town')
     taxTbl.drop(columns=['Category', 'Type', 'Tax Year'], inplace=True)
+    taxTbl['y1MTax'] = taxTbl[currYear-1] * (taxTbl['Rate'] / 1000)
+    taxTbl['y2MTaxFlat'] = taxTbl[currYear] * (taxTbl['Rate'] / 1000)
+    taxTbl['yoyTaxFlat'] = taxTbl['y2MTaxFlat'] - taxTbl['y1MTax']
     return taxTbl
 taxTbl = getTaxCalcs(useSet, currYear, rates)
     
