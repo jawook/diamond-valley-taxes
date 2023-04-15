@@ -40,20 +40,23 @@ def useful(fullSet, currYear):
     return useSet
 useSet = useful(fullSet, currYear)
 
+@st.cache_data
 def getYoYChng(useSet, currYear):
     wideSet = pd.pivot_table(useSet, index='Roll Number', 
                              columns='Tax Year', values='Total Value', 
                              aggfunc=np.sum)
-    wideSet = pd.merge(left=wideSet, 
-                        right=useSet[['Roll Number', 'Street Address']].drop_duplicates(subset=['Roll Number'], keep='first'),
-                        how='left', on='Roll Number')
-    wideSet = wideSet[['Street Address', currYear, currYear - 1]]
+    wideSet = pd.merge(left=wideSet,
+                       right=useSet[['Roll Number', 'Street Address']].drop_duplicates(subset=['Roll Number'], 
+                                                                                        keep='first'),
+                       how='left', on='Roll Number')
+    wideSet = wideSet[['Street Address', 'Town', currYear, currYear - 1]]
     wideSet['dolChg'] = wideSet[currYear] - wideSet[currYear - 1]
     wideSet['pctChg'] = (wideSet[currYear] / wideSet[currYear - 1]) - 1
     wideSet.dropna(how='any', inplace=True)
     return wideSet
 YoYChng = getYoYChng(useSet, currYear)
 
+@st.cache_data
 def getDistnData(useSet):
     distnData = useSet[['Roll Number', 'Total Value', 'Tax Year']]
     return distnData
@@ -67,6 +70,16 @@ def getAddrs(useSet):
 allAddr = getAddrs(useSet)
 dAIdx = allAddr.index(defaultAddr)
 
+def getTaxCalcs(useSet, currYear, taxRates):
+    taxTbl = getYoYChng(useSet, currYear)
+    taxRates = taxRates[(taxRates['Year']==currYear) | 
+                        (taxRates['Year']==(currYear-1)) & 
+                        (taxRates['Category']=='Residential') &
+                        (taxRates['Type']=='General Municipality')]
+    taxTbl = pd.merge(left=taxTbl, right=taxRates, how='left', on='Town')
+    return taxTbl
+taxTbl = getTaxCalcs(useSet, currYear, taxRates)
+    
 #%% Sidebar loading
 with st.sidebar:
     st.markdown('### START HERE: select a property for analysis')
@@ -108,8 +121,9 @@ yoyAvgDol = YoYChng['dolChg'].mean()
 yoyClsDol = closest(YoYChng['dolChg'], YoYChng['Street Address'], yoyAvgDol)
 yoyAvgPct = YoYChng['pctChg'].mean()
 yoyClsPct = closest(YoYChng['pctChg'], YoYChng['Street Address'], yoyAvgPct)
-y1Avg = distnData[(distnData['Tax Year']==currYear)]['Total Value'].mean()
-y2Avg = distnData[(distnData['Tax Year']==(currYear-1))]['Total Value'].mean()
+y2Avg = distnData[(distnData['Tax Year']==currYear)]['Total Value'].mean()
+y1Avg = distnData[(distnData['Tax Year']==(currYear-1))]['Total Value'].mean()
+
 
 #%% charts
 ## single property yoy chng
@@ -136,15 +150,15 @@ introCht2 = px.histogram(distnData[(distnData['Tax Year']==currYear)|
                          nbins=20, 
                          title='Distribution of Residential<br>Property ' + 
                          'Assessments')
-introCht2.add_annotation(x=y1Avg, y=225, showarrow=False, text="<b>" + str(currYear) + 
-                         ' Avg: </b><br>${:,.0f} </b><br>'.format(y1Avg) + 
-                         '{b:+,.0%}'.format(b=(y1Avg/y2Avg)-1), xshift=50, 
+introCht2.add_annotation(x=y2Avg, y=225, showarrow=False, text="<b>" + str(currYear) + 
+                         ' Avg: </b><br>${:,.0f} </b><br>'.format(y2Avg) + 
+                         '{b:+,.0%}'.format(b=(y2Avg/y1Avg)-1), xshift=50, 
                          font=dict(color=defColors[0]))
-introCht2.add_vline(x=y1Avg, line_width=3, line_dash='dash', line_color=defColors[0])
-introCht2.add_annotation(x=y2Avg, y=225, showarrow=False, text="<b>" + str(currYear - 1) + 
-                         ' Avg: </b><br>${a:,.0f}<br> '.format(a=y2Avg), xshift=-50, 
+introCht2.add_vline(x=y2Avg, line_width=3, line_dash='dash', line_color=defColors[0])
+introCht2.add_annotation(x=y1Avg, y=225, showarrow=False, text="<b>" + str(currYear - 1) + 
+                         ' Avg: </b><br>${a:,.0f}<br> '.format(a=y1Avg), xshift=-50, 
                          font=dict(color=defColors[1]))
-introCht2.add_vline(x=y2Avg, line_width=3, line_dash='dash', line_color=defColors[1])
+introCht2.add_vline(x=y1Avg, line_width=3, line_dash='dash', line_color=defColors[1])
 introCht2.update_xaxes(title='Residential Property Value', tickformat='$,.0f')
 introCht2.update_yaxes(title='Number of Properties')
 
@@ -270,11 +284,22 @@ So how did your change in assessment compare to others?
 
 '''
 
-tSoWhat = '''
+tSoWhat1 = '''
 ---
 #### So what does this mean for my tax bill?
 
-What it means is that 
+What most people are concerned about if assessments increase, is that tax bills
+will go up by the same % amount.  And that is true if council holds the mill rate
+flat.  So lets see what that would look like:
+
+'''
+
+tSoWhat2 = '''
+
+There are a couple of ways that you can look at things:
+
+##### What should happen?
+
 '''
 
 # mainapp configuration
@@ -298,3 +323,6 @@ with yoyChts2:
     st.plotly_chart(yoyCht2, use_container_width=True,
                     config = {'displayModeBar': False})
 st.markdown(tSoWhat)
+soWhat1, soWhat2 = st.columns(2)
+# with soWhat1:
+    
