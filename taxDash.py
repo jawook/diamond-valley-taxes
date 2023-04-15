@@ -9,7 +9,7 @@ import plotly_express as px
 dataFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRollInfo/Consolidated.csv'
 currYear = 2023
 defaultAddr = '622 Sunrise Hill S.W.'
-defColors = px.colors.qualitative.Vivid
+defColors = px.colors.qualitative.G10
 
 #%% Data retrieval
 
@@ -74,20 +74,33 @@ with st.sidebar:
 
 #%% post-selection data processing
 @st.cache_data
-def getIntroSamp(useSet, currYear):
+def getIntroSamp(useSet, currYear, selAddr):
     introSamp = useSet[(useSet['Street Address'] == selAddr) & 
                        (useSet['Tax Year'] <= currYear) & 
                        (useSet['Tax Year'] >= currYear - 1)
                        ].sort_values(by=['Tax Year'])
     introSamp['pctChg'] = introSamp['Total Value'].pct_change()
     return introSamp
-introSamp = getIntroSamp(useSet, currYear)
+introSamp = getIntroSamp(useSet, currYear, selAddr)
+
+#%% used functions
+
+def closest(serLst, retLst, K):
+    serLst = np.asarray(serLst)
+    retLst = np.asarray(retLst)
+    idx = (np.abs(serLst-K)).argmin()
+    return retLst[idx]
 
 #%% variable calculation
 
 sampPx2 = introSamp.loc[introSamp['Tax Year']==currYear, ['Total Value']].values[0][0]
 sampPx1 = introSamp.loc[introSamp['Tax Year']==currYear-1, ['Total Value']].values[0][0]
 sampYoY = introSamp.loc[introSamp['Tax Year']==currYear, ['pctChg']].values[0][0]
+sampYoYDol = sampPx2 - sampPx1
+yoyAvgDol = YoYChng['dolChg'].mean()
+yoyClsDol = closest(YoYChng['dolChg'], YoYChng['Street Address'], yoyAvgDol)
+yoyAvgPct = YoYChng['pctChg'].mean()
+yoyClsPct = closest(YoYChng['pctChg'], YoYChng['Street Address'], yoyAvgPct)
 y1Avg = distnData[(distnData['Tax Year']==currYear)]['Total Value'].mean()
 y2Avg = distnData[(distnData['Tax Year']==(currYear-1))]['Total Value'].mean()
 
@@ -136,6 +149,13 @@ yoyCht1 = px.bar(YoYChng.sort_values(by='dolChg', ascending=True), x ='dolChg',
 yoyCht1.update_xaxes(title='Change in Property Assessment ($000s)', 
                      tickformat='$~s', range=[0,100000])
 yoyCht1.add_hline(y=selAddr, line_width=3, line_dash='dash', line_color=defColors[2])
+yoyCht1.add_annotation(text='<b>' + selAddr + ': {:+,.0f}</b>'.format(sampYoYDol), 
+                       y=selAddr, showarrow=False, yshift=10,
+                       font=dict(color=defColors[2]))
+yoyCht1.add_hline(y=yoyClsDol, line_width=3, line_dash='dash', line_color=defColors[6])
+yoyCht1.add_annotation(text='<b>Avg. Change: {:+,.0f}</b>'.format(yoyAvgDol), 
+                       y=yoyClsDol, showarrow=False, yshift=-10,
+                       font=dict(color=defColors[6]))
 yoyCht1.update_yaxes(visible=False)
 
 
@@ -147,6 +167,13 @@ yoyCht2 = px.bar(YoYChng.sort_values(by='pctChg', ascending=True), x ='pctChg',
 yoyCht2.update_xaxes(title='% Change in Property Assessment', 
                      tickformat='.1%', range=[0,0.4])
 yoyCht2.add_hline(y=selAddr, line_width=3, line_dash='dash', line_color=defColors[2])
+yoyCht2.add_annotation(text='<b>' + selAddr + ': {:+,.1%}</b>'.format(sampYoY), 
+                       y=selAddr, showarrow=False, yshift=10,
+                       font=dict(color=defColors[2]))
+yoyCht2.add_hline(y=yoyClsPct, line_width=3, line_dash='dash', line_color=defColors[6])
+yoyCht2.add_annotation(text='<b>Avg. Change: {:+,.1%}</b>'.format(yoyAvgPct), 
+                       y=yoyClsPct, showarrow=False, yshift=-10,
+                       font=dict(color=defColors[6]))
 yoyCht2.update_yaxes(visible=False)
 
 # Multi-line text strings
@@ -156,12 +183,13 @@ This guide was created to help folks in [Diamond Valley, Alberta](https://goo.gl
 the process that determines property values, the mill rate and municipal tax bills
 that happens each year in our community.
 
-The creator is [Jamie Wilkie](mailto:jamie.c.wilkie@gmail.com).  I was briefly
+I'm the creator, [Jamie Wilkie](mailto:jamie.c.wilkie@gmail.com).  I was briefly
 a councillor of Turner Valley and am a self-confessed local 
 politics nerd. My "real job" is as an instructor of data analysis and financial
 modeling with [The Marquee Group](www.marqueegroup.ca), which was recently
-acquired by Training the Street LLC. Taxes involve a lot of data. So this was a 
-natural draw.
+acquired by Training the Street LLC. 
+
+Taxes involve a lot of data. So this was a natural draw.
 '''
 
 tTaxEq1 = '''
