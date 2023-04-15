@@ -46,8 +46,8 @@ def getYoYChng(useSet, currYear):
                              columns='Tax Year', values='Total Value', 
                              aggfunc=np.sum)
     wideSet = pd.merge(left=wideSet,
-                       right=useSet[['Roll Number', 'Street Address']].drop_duplicates(subset=['Roll Number'], 
-                                                                                        keep='first'),
+                       right=useSet[['Roll Number', 'Street Address', 'Town']].drop_duplicates(subset=['Roll Number'], 
+                                                                                        keep='last'),
                        how='left', on='Roll Number')
     wideSet = wideSet[['Street Address', 'Town', currYear, currYear - 1]]
     wideSet['dolChg'] = wideSet[currYear] - wideSet[currYear - 1]
@@ -70,15 +70,16 @@ def getAddrs(useSet):
 allAddr = getAddrs(useSet)
 dAIdx = allAddr.index(defaultAddr)
 
-def getTaxCalcs(useSet, currYear, taxRates):
+@st.cache_data
+def getTaxCalcs(useSet, currYear, rates):
     taxTbl = getYoYChng(useSet, currYear)
-    taxRates = taxRates[(taxRates['Year']==currYear) | 
-                        (taxRates['Year']==(currYear-1)) & 
-                        (taxRates['Category']=='Residential') &
-                        (taxRates['Type']=='General Municipality')]
-    taxTbl = pd.merge(left=taxTbl, right=taxRates, how='left', on='Town')
+    rates = rates[(rates['Tax Year']==(currYear-1)) & 
+                  (rates['Category']=='Residential') &
+                  (rates['Type']=='General Municipality')]
+    taxTbl = pd.merge(left=taxTbl, right=rates, how='left', on='Town')
+    taxTbl.drop(columns=['Category', 'Type', 'Tax Year'], inplace=True)
     return taxTbl
-taxTbl = getTaxCalcs(useSet, currYear, taxRates)
+taxTbl = getTaxCalcs(useSet, currYear, rates)
     
 #%% Sidebar loading
 with st.sidebar:
@@ -322,7 +323,7 @@ with yoyChts1:
 with yoyChts2:
     st.plotly_chart(yoyCht2, use_container_width=True,
                     config = {'displayModeBar': False})
-st.markdown(tSoWhat)
+st.markdown(tSoWhat1)
 soWhat1, soWhat2 = st.columns(2)
 # with soWhat1:
     
