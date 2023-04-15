@@ -6,7 +6,8 @@ import streamlit as st
 import plotly_express as px
 
 # Definitions:
-dataFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRollInfo/Consolidated.csv'
+rollFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRollInfo/Consolidated.csv'
+millFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRateData/taxRates.csv'
 currYear = 2023
 defaultAddr = '622 Sunrise Hill S.W.'
 defColors = px.colors.qualitative.G10
@@ -14,11 +15,17 @@ defColors = px.colors.qualitative.G10
 #%% Data retrieval
 
 @st.cache_data
-def retrData():
-    fullSet = pd.read_csv(dataFP)
+def retrRoll(fp):
+    fullSet = pd.read_csv(fp)
     fullSet['Street Address'] = fullSet['Street Address'].str.title()
     return fullSet
-fullSet = retrData()
+fullSet = retrRoll(rollFP)
+
+@st.cache_data
+def retrRate(fp):
+    rates = pd.read_csv(fp)
+    return rates
+rates = retrRate(millFP)
 
 #%% Data processing functions
 
@@ -190,13 +197,12 @@ modeling with [The Marquee Group](www.marqueegroup.ca), which was recently
 acquired by Training the Street LLC. 
 
 Taxes involve a lot of data. So this was a natural draw.
-'''
-
-tTaxEq1 = '''
 
 ---
 #### Assessments are up again!  My taxes are going to skyrocket!
+'''
 
+tTaxEq1 = '''
 Maybe. But hold on a second...
 
 There is one simple equation that you must know to understand calculation of 
@@ -246,7 +252,6 @@ municipality as a whole.*
 '''
 
 tWhyAssess = '''
-
 ---
 #### So what is the point of the assessment? 
 
@@ -261,8 +266,15 @@ the same year-over-year, but your house value increased and every other house
 decreased in value, your annual tax bill would go up (and everyone else's would
 go down slightly).
 
-So how did your change in assessment compare to other's?
+So how did your change in assessment compare to others?
 
+'''
+
+tSoWhat = '''
+---
+#### So what does this mean for my tax bill?
+
+What it means is that 
 '''
 
 # mainapp configuration
@@ -285,3 +297,4 @@ with yoyChts1:
 with yoyChts2:
     st.plotly_chart(yoyCht2, use_container_width=True,
                     config = {'displayModeBar': False})
+st.markdown(tSoWhat)
