@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 
+# TODO NOTES
+# Next chart should show distribution of tax changes (both % and dollar??? side by side?)
+
 import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly_express as px
 
 # Definitions:
-rollFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRollInfo/Consolidated.csv'
-millFP = 'https://raw.githubusercontent.com/jawook/diamond-valley-taxes/main/taxRateData/taxRates.csv'
+rollFP = 'taxRollInfo/Consolidated.csv'
+millFP = 'taxRateData/taxRates.csv'
 currYear = 2023
 defaultAddr = '622 Sunrise Hill S.W.'
 defColors = px.colors.qualitative.G10
@@ -107,6 +110,20 @@ def getIntroSamp(useSet, currYear, selAddr):
     return introSamp
 introSamp = getIntroSamp(useSet, currYear, selAddr)
 
+def getTaxSamp(useSet, currYear, selAddr, rates):
+    taxSamp = useSet[(useSet['Street Address'] == selAddr) &
+                     (useSet['Tax Year'] <= currYear) &
+                     (useSet['Tax Year'] >= currYear - 1)
+                     ].sort_values(by=['Tax Year'])
+    taxSamp = pd.merge(left=taxSamp, 
+                       right=rates[(rates['Category'] == 'Residential') &
+                                   (rates['Type'] == 'General Municipality')], 
+                       how='left', on=['Town', 'Tax Year'])
+    taxSamp['flatRate'] = taxSamp['Rate'].ffill()
+    taxSamp['flatTax'] = taxSamp['Total Value'] * (taxSamp['flatRate'] / 1000)
+    return taxSamp
+taxSamp = getTaxSamp(useSet, currYear, selAddr, rates)
+
 #%% used functions
 
 def closest(serLst, retLst, K):
@@ -127,7 +144,10 @@ yoyAvgPct = YoYChng['pctChg'].mean()
 yoyClsPct = closest(YoYChng['pctChg'], YoYChng['Street Address'], yoyAvgPct)
 y2Avg = distnData[(distnData['Tax Year']==currYear)]['Total Value'].mean()
 y1Avg = distnData[(distnData['Tax Year']==(currYear-1))]['Total Value'].mean()
-
+y1Tax = taxSamp.loc[taxSamp['Tax Year']==(currYear-1), ['flatTax']].values[0][0]
+y2TaxFlat = taxSamp.loc[taxSamp['Tax Year']==currYear, ['flatTax']].values[0][0]
+pctTaxFlat = y2TaxFlat / y1Tax - 1
+dolTaxFlat = y2TaxFlat - y1Tax
 
 #%% charts
 ## single property yoy chng
@@ -201,7 +221,27 @@ yoyCht2.add_annotation(text='<b>Avg. Change: {:+,.1%}</b>'.format(yoyAvgPct),
                        font=dict(color=defColors[6]))
 yoyCht2.update_yaxes(visible=False)
 
-# Multi-line text strings
+
+# yoy Tax Change
+taxCht1 = px.bar(taxSamp, x='Tax Year', y='flatTax', 
+                 title='Municipal Taxes (Assuming a <br>' +
+                 'Flat Mill Rate in ' + str(currYear) + ')',
+                 color_discrete_sequence=defColors)
+taxCht1.update_xaxes(type='category')
+taxCht1.update_yaxes(tickformat='$,.0f', visible=False)
+taxCht1.add_annotation(x=0, y=y1Tax, 
+                       text='<b>${:,.0f}</b>'.format(y1Tax),
+                       showarrow=False, yshift=-10, font=dict(color='white'),
+                       yanchor='top')
+taxCht1.add_annotation(x=1, y=y2TaxFlat, 
+                       text='<b>${a:,.0f}</b><br>{b:+,.0f}'.format(a=y2TaxFlat, b=dolTaxFlat),
+                       showarrow=False, yshift=-10, font=dict(color='white'),
+                       yanchor='top')
+taxCht1.add_annotation(x=1, y=y2TaxFlat, 
+                       text='<b>{:+,.1%}</b>'.format(pctTaxFlat),
+                       showarrow=False, yshift=10, font=dict(color=defColors[0]))
+
+#%% Multi-line text strings
 tIntro1 = '''
 
 This guide was created to help folks in [Diamond Valley, Alberta](https://goo.gl/maps/uzskowEQhFrGKbCG7) better understand
@@ -328,5 +368,6 @@ with yoyChts2:
                     config = {'displayModeBar': False})
 st.markdown(tSoWhat1)
 soWhat1, soWhat2 = st.columns(2)
-# with soWhat1:
-    
+with soWhat1:
+    st.plotly_chart(taxCht1, use_container_width=True,
+                    config = {'displayModeBar': False})    
