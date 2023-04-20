@@ -178,7 +178,7 @@ yoyClsTaxDolAvgFlat = closest(taxTbl['yoyTaxFlat'], taxTbl['Street Address'], yo
 #%% charts
 ## single property yoy chng
 introCht1 = px.bar(introSamp, x='Tax Year', y='Total Value', 
-                   title='Property Assessment for<br>' + selAddr.title(),
+                   title='Residential Property Assessment for<br>' + selAddr.title(),
                    color_discrete_sequence=defColors)
 introCht1.update_xaxes(type='category')
 introCht1.update_yaxes(visible=False)
@@ -193,6 +193,8 @@ introCht1.add_annotation(x=1, y=sampPx2,
                          text='<b>' + 
                          '${:,.0f}</b>'.format(sampPx2),
                          showarrow=False, yshift=-10, font=dict(color='white'))
+introCht1.update_traces(hovertemplate='<b>Tax Year=</b>%{x}<br>' + 
+                        '<b>Total Value=</b>%{y:$,.0f}')
 
 ## distribution yoy
 introCht2 = px.histogram(distnData[(distnData['Tax Year']==currYear)|
@@ -213,6 +215,12 @@ introCht2.add_annotation(x=y1Avg, y=225, showarrow=False, text="<b>" + str(currY
 introCht2.add_vline(x=y1Avg, line_width=3, line_dash='dash', line_color=defColors[1])
 introCht2.update_xaxes(title='Residential Property Value', tickformat='$,.0f')
 introCht2.update_yaxes(title='Number of Properties')
+ic2CustData = np.array(distnData[(distnData['Tax Year']==currYear)|
+                                 (distnData['Tax Year']==(currYear-1))]['Tax Year'])
+introCht2.update_traces(customdata=ic2CustData, 
+                        hovertemplate='<b>Tax Year=</b>%{customdata}<br>' + 
+                        '<b>Total Value=</b>%{x}<br>' + 
+                        '<b># of Properties=</b>%{y}')
 
 # yoyChg charts ($ change)
 yoyCht1 = px.bar(YoYChng.sort_values(by='dolChg', ascending=True), x ='dolChg',
@@ -234,7 +242,8 @@ yoyCht1.add_annotation(text='<b>Avg. Change: ' +
                        y=yoyClsDol, showarrow=False, yshift=-10,
                        font=dict(color=defColors[6]))
 yoyCht1.update_yaxes(visible=False)
-
+yoyCht1.update_traces(hovertemplate='<b>YoY $ Change=</b>%{x:$,.0f}' + 
+                      '<br><b>Street Address=</b>%{y}')
 
 # yoyChg charts (% change)
 yoyCht2 = px.bar(YoYChng.sort_values(by='pctChg', ascending=True), x ='pctChg',
@@ -252,7 +261,8 @@ yoyCht2.add_annotation(text='<b>Avg. Change: {:+,.1%}</b>'.format(yoyAvgPct),
                        y=yoyClsPct, showarrow=False, yshift=-10,
                        font=dict(color=defColors[6]))
 yoyCht2.update_yaxes(visible=False)
-
+yoyCht2.update_traces(hovertemplate='<b>YoY % Change=</b>%{x:,.1%}' + 
+                      '<br><b>Street Address=</b>%{y}')
 
 # yoy Tax Change
 taxCht1 = px.bar(taxSamp, x='Tax Year', y='flatTax', 
@@ -270,7 +280,8 @@ taxCht1.add_annotation(x=1, y=y2TaxFlat,
 taxCht1.add_annotation(x=1, y=y2TaxFlat, 
                        text='<b>{a:+,.1%}</b><br>{b:+,.0f}'.format(a=pctTaxFlat, b=dolTaxFlat),
                        showarrow=False, yshift=20, font=dict(color=defColors[0]))
-
+taxCht1.update_traces(hovertemplate='<b>Tax Year=</b>%{x}' + 
+                      '<br><b>Municipal Taxes=</b>%{y:$,.0f}')
 
 # yoy Tax Change distribution
 taxCht2 = px.bar(taxTbl, x='yoyTaxFlat', 
@@ -292,7 +303,8 @@ taxCht2.update_yaxes(visible=False)
 taxCht2.update_xaxes(range=[0, 801], tickformat='$,.0f',
                      title='Change in Taxes from ' + str(currYear - 1) + '->' + 
                      str(currYear))
-
+taxCht2.update_traces(hovertemplate='<b>YoY $ Change=</b>%{x:$,.0f}' + 
+                      '<br><b>Street Address=</b>%{y}')
 
 
 
@@ -369,7 +381,7 @@ tWhyAssess = '''
 ---
 #### So what is the point of the assessment? 
 
-Assessment exist exclusiveliy to determine what *your home's share* of the total 
+Assessments exist exclusively to determine what *your home's share* of the total 
 municipal tax levied. If the amount of expenses for the municipality stay the same,
 and the total overall assessment stays the same, the mill rate will stay the same.
 But your individual tax bill will depend on how your assessment changes *relative
@@ -523,7 +535,8 @@ taxCht3 = px.bar(millSampUPik, x='Year', y='Mill',
 taxCht3.update_xaxes(type='category')
 taxCht3.update_yaxes(tickformat='$,.0000f', visible=False)
 taxCht3.update_traces(textposition='outside')
-
+taxCht3.update_traces(hovertemplate='<b>Tax Year=</b>%{x}' + 
+                      '<br><b>Mill Rate=</b>%{y:,.5f}')
 
 # yoy Tax Change distribution
 taxCht4 = px.bar(taxTbl, x='yoyTaxUPik', 
@@ -545,6 +558,8 @@ taxCht4.update_yaxes(visible=False)
 taxCht4.update_xaxes(range=rngDolTaxUPik, tickformat='$,.0f',
                       title='Change in Taxes from ' + str(currYear - 1) + '->' + 
                       str(currYear))
+taxCht4.update_traces(hovertemplate='<b>YoY $ Change=</b>%{x:$,.0f}' + 
+                      '<br><b>Street Address=</b>%{y}')
 
 #%% mainapp continued
 soWhat3, soWhat4 = st.columns(2)
