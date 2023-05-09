@@ -17,6 +17,7 @@ currYear = 2023
 defaultAddr = '622 Sunrise Hill S.W.'
 defColors = px.colors.qualitative.G10
 problemAddrs = ['1000 Oakalta Road Nw', '1000 Oakalta Road S.W.']
+propRate = 7.05295
 
 #%% Data retrieval
 
@@ -132,6 +133,8 @@ def getTaxSamp(useSet, currYear, selAddr, rates):
                        how='left', on=['Town', 'Tax Year'])
     taxSamp['flatRate'] = taxSamp['Rate'].ffill()
     taxSamp['flatTax'] = taxSamp['Total Value'] * (taxSamp['flatRate'] / 1000)
+    taxSamp['propRate'] = np.where(taxSamp['Tax Year']==currYear, propRate, taxSamp['Rate'])
+    taxSamp['propTax'] = taxSamp['Total Value'] * (taxSamp['propRate'] / 1000)
     return taxSamp
 taxSamp = getTaxSamp(useSet, currYear, selAddr, rates)
 
@@ -164,6 +167,9 @@ y1Tax = taxSamp.loc[taxSamp['Tax Year']==(currYear-1), ['flatTax']].values[0][0]
 y2TaxFlat = taxSamp.loc[taxSamp['Tax Year']==currYear, ['flatTax']].values[0][0]
 pctTaxFlat = y2TaxFlat / y1Tax - 1
 dolTaxFlat = y2TaxFlat - y1Tax
+y2TaxProp = taxSamp.loc[taxSamp['Tax Year']==currYear, ['propTax']].values[0][0]
+pctTaxProp = y2TaxProp / y1Tax - 1
+dolTaxProp = y2TaxProp - y1Tax
 
 # for taxCht2
 y1TotalTax = taxTbl['y1MTax'].sum()
@@ -472,6 +478,21 @@ is used for the visualizations.
 
 '''
 
+tUpdate = '''
+---
+#### Update for Proposed Mill Rates
+
+Council is meeting on May 9th to discuss setting the mill rate and budget for
+2023.  If you want to watch, you can do so [from here](https://blackdiamond.civicweb.net/filepro/documents/73869/?preview=77509),
+the meeting is at 6:30PM.
+
+The proposed mill rate in the budget documents presented for approval is 0.00705295.
+
+Now that we know the assessments and know the proposed mill rate, we can look at
+the forecasted impact on each property\'s municipal tax bill.  That is what is below:
+    
+'''
+
 #%% mainapp configuration
 st.image('animation.gif')
 st.markdown(tIntro1)
@@ -570,4 +591,127 @@ with soWhat4:
     st.plotly_chart(taxCht4, use_container_width=True,
                     config = {'displayModeBar': False})
 st.markdown(tSoWhat3)
+
+#%% intermission charts based on slider selection
+
+# yoy Tax Change @ proposed rate
+taxCht5 = px.bar(taxSamp, x='Tax Year', y='propTax', 
+                 title='Municipal Taxes for ' + str(selAddr) + 
+                 '<br>(Assuming a Mill Rate in ' + str(currYear) + ' of ' + 
+                 str(propRate) + ')',
+                 color_discrete_sequence=defColors)
+taxCht5.update_xaxes(type='category')
+taxCht5.update_yaxes(tickformat='$,.0f', visible=False)
+taxCht5.add_annotation(x=0, y=y1Tax, 
+                       text='<b>${a:,.0f}</b>'.format(a=y1Tax),
+                       showarrow=False, yshift=-10, font=dict(color='white'))
+taxCht5.add_annotation(x=1, y=y2TaxProp, 
+                       text='<b>${a:,.0f}</b>'.format(a=y2TaxProp),
+                       showarrow=False, yshift=-10, font=dict(color='white'))
+taxCht5.add_annotation(x=1, y=y2TaxProp, 
+                       text='<b>{a:+,.1%}</b><br>{b:+,.0f}'.format(a=pctTaxProp, b=dolTaxProp),
+                       showarrow=False, yshift=20, font=dict(color=defColors[0]))
+taxCht5.update_traces(hovertemplate='<b>Tax Year=</b>%{x}' + 
+                      '<br><b>Municipal Taxes=</b>%{y:$,.0f}')
+
+taxTbl['y2RateProp'] = propRate
+taxTbl['y2MTaxProp'] = (taxTbl['y2RateProp'] / 1000) * taxTbl[currYear]
+taxTbl['yoyTaxProp'] = taxTbl['y2MTaxProp'] - taxTbl['y1MTax']
+taxTbl['yoyTaxPropPct'] = taxTbl['yoyTaxProp'] / taxTbl['y1MTax']
+taxTbl.sort_values(by='yoyTaxProp', inplace=True)
+sampY1MTax = taxTbl.loc[taxTbl['Street Address']==selAddr]['y1MTax'].values[0]
+sampY2MTaxProp = taxTbl.loc[taxTbl['Street Address']==selAddr]['y2MTaxProp'].values[0]
+yoyDolSampProp = sampY2MTaxProp - sampY1MTax
+yoyPctSampProp = yoyDolSampProp / sampY1MTax
+millSampProp = pd.DataFrame({'Year': [currYear-1, currYear], 
+                             'Mill': [y1Rate, propRate]})
+yoyDolAvgProp = taxTbl['yoyTaxProp'].mean()
+yoyClsDolAvgProp = closest(taxTbl['yoyTaxProp'], taxTbl['Street Address'], yoyDolAvgProp)
+rngDolTaxProp = taxTbl['yoyTaxProp'].quantile([.01, .99])
+
+y2TotalTaxProp = taxTbl['y2MTaxProp'].sum()
+yoyTaxDolAvgProp = taxTbl['yoyTaxProp'].mean()
+yoyTaxPctAvgProp = taxTbl['yoyTaxPropPct'].mean()
+sampYoyTaxDolProp = taxTbl.loc[taxTbl['Street Address']==selAddr, ['yoyTaxProp']].values[0][0]
+sampYoyTaxPctProp = taxTbl.loc[taxTbl['Street Address']==selAddr, ['yoyTaxPropPct']].values[0][0]
+yoyClsTaxPctAvgProp = closest(taxTbl['yoyTaxPropPct'], taxTbl['Street Address'], yoyTaxPctAvgProp)
+yoyClsTaxDolAvgProp = closest(taxTbl['yoyTaxProp'], taxTbl['Street Address'], yoyTaxDolAvgProp)
+
+# yoy Tax Change distribution @ proposed rate
+taxCht6 = px.bar(taxTbl, x='yoyTaxProp', 
+                 y='Street Address', title='Distribution of YoY Change in Taxes <br>'+ 
+                 '(Assuming a Mill Rate in ' + str(currYear) + ' of ' + 
+                 str(propRate) + ')')
+taxCht6.add_annotation(y=selAddr, x=400, showarrow=False, 
+                       text="<b>" + str(selAddr) + ': ' +
+                       re.sub(r'[0-9,.]','','{a:+0f}'.format(a=sampYoyTaxDolProp)) + 
+                       '${b:,.0f}'.format(b=sampYoyTaxDolProp), 
+                       yshift=10, font=dict(color=defColors[6]))
+taxCht6.add_hline(y=selAddr, line_width=3, line_dash='dash', line_color=defColors[6])
+taxCht6.add_annotation(y=yoyClsTaxDolAvgProp, x=300, showarrow=False, 
+                       text="<b>" + str(currYear - 1) + '->' + str(currYear) +
+                       ' Avg: ' + re.sub(r'[0-9,.]','','{a:+0f}'.format(a=yoyTaxDolAvgProp)) +
+                       '${a:,.0f}'.format(a=yoyTaxDolAvgProp), yshift=-10, 
+                       font=dict(color=defColors[2]))
+taxCht6.add_hline(y=yoyClsTaxDolAvgProp, line_width=3, line_dash='dash', line_color=defColors[2])
+taxCht6.update_yaxes(visible=False)
+taxCht6.update_xaxes(range=[-200, 801], tickformat='$,.0f',
+                     title='Change in Taxes from ' + str(currYear - 1) + '->' + 
+                     str(currYear))
+taxCht6.update_traces(hovertemplate='<b>YoY $ Change=</b>%{x:$,.0f}' + 
+                      '<br><b>Street Address=</b>%{y}')
+
+bns =  [min(taxTbl['yoyTaxProp']), -100, -75, -50, -25, 0, 25, 50, 75, 
+         100, max(taxTbl['yoyTaxProp'])]
+lbls = [('{:,.0f}'.format(bns[j]) + ' to ' + '{:,.0f}'.format(bns[j+1])) for j in range(len(bns)-1)]
+taxTbl['binsFlat'] = pd.cut(taxTbl['yoyTaxProp'], bns, labels=lbls)
+
+taxCht7 = px.histogram(taxTbl, 
+                        x='binsFlat', 
+                        color_discrete_sequence=defColors, nbins=20, 
+                        title='Distribution of YoY Change in <br>' + 
+                        'Residential Property Tax ($/yr)', histnorm='probability density')
+taxCht7.update_yaxes(title="Number of Properties", tickformat='.0%')
+taxCht7.update_xaxes(title="YoY Change in Property Taxes")
+taxCht7.update_traces(hovertemplate='Range of Changes=%{x}<br>% of Properties=%{y:.0%}')
+
+# yoy Tax Change distribution @ proposed rate
+taxCht8 = px.bar(taxTbl.sort_values(by='yoyTaxPropPct'), x='yoyTaxPropPct', 
+                  y='Street Address', title='Distribution of YoY % Change in Taxes <br>'+ 
+                  '(Assuming a Mill Rate in ' + str(currYear) + ' of ' + 
+                  str(propRate) + ')')
+taxCht8.add_annotation(y=selAddr, x=.05, showarrow=False, 
+                        text="<b>" + str(selAddr) + ': ' +
+                        re.sub(r'[0-9,.]','','{a:+0f}'.format(a=sampYoyTaxPctProp)) + 
+                        '{b:,.1%}'.format(b=abs(sampYoyTaxPctProp)), 
+                        yshift=10, font=dict(color=defColors[6]))
+taxCht8.add_hline(y=selAddr, line_width=3, line_dash='dash', line_color=defColors[6])
+taxCht8.add_annotation(y=yoyClsTaxPctAvgProp, x=.05, showarrow=False, 
+                        text="<b>" + str(currYear - 1) + '->' + str(currYear) +
+                        ' Avg: ' + re.sub(r'[0-9,.]','','{a:+0f}'.format(a=yoyTaxPctAvgProp)) +
+                        '{a:,.1%}'.format(a=abs(yoyTaxPctAvgProp)), yshift=-10, 
+                        font=dict(color=defColors[2]))
+taxCht8.add_hline(y=yoyClsTaxPctAvgProp, line_width=3, line_dash='dash', line_color=defColors[2])
+taxCht8.update_yaxes(visible=False)
+taxCht8.update_xaxes(range=[-.1, .201], tickformat=',.0%',
+                      title='Change in Taxes from ' + str(currYear - 1) + '->' + 
+                      str(currYear))
+taxCht8.update_traces(hovertemplate='<b>YoY $ Change=</b>%{x:$,.0f}' + 
+                      '<br><b>Street Address=</b>%{y}')
+
+#%% mainapp continued
+st.markdown(tSoWhat3)
+st.markdown(tUpdate)
+update1, update2 = st.columns(2)
+with update1:
+    st.plotly_chart(taxCht5, use_container_width=True,
+                    config = {'displayModeBar': False})
+    st.plotly_chart(taxCht7, use_container_width=True,
+                    config = {'displayModeBar': False})
+with update2:
+    st.plotly_chart(taxCht6, use_container_width=True,
+                    config = {'displayModeBar': False})
+    st.plotly_chart(taxCht8, use_container_width=True,
+                    config = {'displayModeBar': False})
+
 st.markdown(tWrapUp1)
