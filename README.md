@@ -19,3 +19,7 @@ As a result, I created a master dataset in csv format that is [available here](t
 
 ## Analysis
 After aggregation of all data, the dashboard that you [see here](https://diamond-valley-taxes.streamlit.app/) was created [using Streamlit](https://streamlit.io/).  The code for the dashboard can be [found here](https://github.com/jawook/diamond-valley-taxes).  If you have any comments, questions or suggestions, please reach out.
+
+# Update May 9 2023
+
+Based on the proposed mill rate in the May 9, 2023 budget document a new section has been added discussing the impact on taxes at that mill rate.
