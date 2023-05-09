@@ -16,7 +16,7 @@ millFP = 'taxRateData/taxRates.csv'
 currYear = 2023
 defaultAddr = '622 Sunrise Hill S.W.'
 defColors = px.colors.qualitative.G10
-problemAddrs = ['1000 Oakalta Road Nw', '1000 Oakalta Road S.W.']
+problemAddrs = ['1000 Oakalta Road Nw', '1000 Oakalta Road S.W.', '1100 Okalta Rd. S.W.', '1100 Okalta Road. S.W.']
 propRate = 7.05295
 
 #%% Data retrieval
