@@ -696,7 +696,7 @@ taxCht8.update_yaxes(visible=False)
 taxCht8.update_xaxes(range=[-.1, .201], tickformat=',.0%',
                       title='Change in Taxes from ' + str(currYear - 1) + '->' + 
                       str(currYear))
-taxCht8.update_traces(hovertemplate='<b>YoY $ Change=</b>%{x:,.1%}' + 
+taxCht8.update_traces(hovertemplate='<b>YoY % Change=</b>%{x:,.1%}' + 
                       '<br><b>Street Address=</b>%{y}')
 
 #%% mainapp continued
